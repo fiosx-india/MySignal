@@ -140,4 +140,113 @@ def main():
     with col5:
         st.metric("BANKEX", f"{market.get('BSE BANKEX', 'N/A')}%")
     with col6:
-        st.metric("India VIX", f"{market.get('INDIA VIX', 'N/A')
+        st.metric("India VIX", f"{market.get('INDIA VIX', 'N/A')}")
+
+    if index_bias >= 0.65:
+        bias_label = "🟢 Bullish"
+    elif index_bias <= 0.35:
+        bias_label = "🔴 Bearish"
+    else:
+        bias_label = "🟡 Neutral"
+
+    st.info(f"**Index Bias Score:** `{index_bias:.2f}`  →  **{bias_label}**")
+    st.divider()
+
+    # Sidebar
+    with st.sidebar:
+        st.title("MySignal")
+        st.markdown("---")
+        st.subheader("⚙️ Filters")
+        min_value = st.slider("Min Value (₹ Cr)", 0, 500, 40, 10)
+        signal_filter = st.multiselect(
+            "Signal Type",
+            options=["STRONG BULLISH", "Bullish", "Neutral", "Bearish", "STRONG BEARISH"],
+            default=["STRONG BULLISH", "STRONG BEARISH", "Bullish"]
+        )
+        st.markdown("---")
+        st.subheader("🔍 Stock Search")
+        symbol_input = st.text_input("Symbol", placeholder="e.g. RELIANCE").strip().upper()
+        st.markdown("---")
+        st.caption("Personal use only")
+
+    # Tabs
+    tab1, tab2, tab3, tab4 = st.tabs(["🔥 Strong Signals", "📈 Top Rising", "📉 Top Falling", "🔎 Stock Detail"])
+
+    filtered = scored_df[scored_df["VALUE (Crores)"] >= min_value]
+    if signal_filter:
+        filtered = filtered[filtered["Signal"].isin(signal_filter)]
+
+    display_cols = ["SYMBOL", "% CHANGE", "VALUE (Crores)", "30 D %CHNG", "Score", "Signal"]
+
+    with tab1:
+        col_a, col_b = st.columns(2)
+        with col_a:
+            st.markdown("#### 🟢 Strong Bullish")
+            strong_up = scored_df[scored_df["Signal"] == "STRONG BULLISH"].sort_values("Score", ascending=False)
+            if strong_up.empty:
+                st.warning("No Strong Bullish signals")
+            else:
+                st.dataframe(strong_up[display_cols], use_container_width=True, hide_index=True)
+        with col_b:
+            st.markdown("#### 🔴 Strong Bearish")
+            strong_down = scored_df[scored_df["Signal"] == "STRONG BEARISH"].sort_values("Score", ascending=True)
+            if strong_down.empty:
+                st.warning("No Strong Bearish signals")
+            else:
+                st.dataframe(strong_down[display_cols].head(15), use_container_width=True, hide_index=True)
+
+    with tab2:
+        st.markdown("#### Top 15 Rising (by Score)")
+        top_up = filtered.sort_values("Score", ascending=False).head(15)
+        st.dataframe(top_up[display_cols], use_container_width=True, hide_index=True)
+
+    with tab3:
+        st.markdown("#### Top 15 Falling (by Score)")
+        top_down = filtered.sort_values("Score", ascending=True).head(15)
+        st.dataframe(top_down[display_cols], use_container_width=True, hide_index=True)
+
+    with tab4:
+        if symbol_input:
+            stock = scored_df[scored_df["SYMBOL"] == symbol_input]
+            if stock.empty:
+                st.error(f"❌ **{symbol_input}** not found in F&O list")
+            else:
+                row = stock.iloc[0]
+                signal = row["Signal"]
+                if "STRONG BULLISH" in signal:
+                    badge = f'<span class="signal-strong-bull">{signal}</span>'
+                elif "Bullish" in signal:
+                    badge = f'<span class="signal-bull">{signal}</span>'
+                elif "STRONG BEARISH" in signal:
+                    badge = f'<span class="signal-strong-bear">{signal}</span>'
+                elif "Bearish" in signal:
+                    badge = f'<span class="signal-bear">{signal}</span>'
+                else:
+                    badge = f'<span class="signal-neutral">{signal}</span>'
+
+                st.markdown(f"### {row['SYMBOL']} &nbsp; {badge}", unsafe_allow_html=True)
+
+                c1, c2, c3, c4 = st.columns(4)
+                c1.metric("LTP", f"₹ {row['LTP']}")
+                c2.metric("% Change", f"{row['% CHANGE']}%")
+                c3.metric("Value", f"₹ {row['VALUE (Crores)']} Cr")
+                c4.metric("Score", f"{row['Score']} / 10")
+
+                st.markdown(f"""
+                | Metric | Value |
+                |--------|-------|
+                | 30D Momentum | {row['30 D %CHNG']}% |
+                | Relative Strength | {row.get('rel_strength', 0):.2f} |
+                | Nifty 50 | {market.get('NIFTY 50')}% |
+                | Bank Nifty | {market.get('NIFTY BANK')}% |
+                | Fin Services | {market.get('NIFTY FINANCIAL SERVICES')}% |
+                | India VIX | {market.get('INDIA VIX')} |
+                """)
+        else:
+            st.info("👈 Type a stock symbol in the sidebar (e.g. RELIANCE, TCS, SBIN)")
+
+    st.divider()
+    st.caption("MySignal • Personal F&O Signal System • Data from your CSVs")
+
+if __name__ == "__main__":
+    main()
